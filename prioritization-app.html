@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Priority Ranking App</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            corePlugins: {
+                preflight: false,
+            }
+        }
+    </script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useRef } = React;
+
+        // Lucide React icons as inline SVG components
+        const ArrowRight = ({ size = 24 }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+                <polyline points="12 5 19 12 12 19"></polyline>
+            </svg>
+        );
+
+        const RotateCcw = ({ size = 24 }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="1 4 1 10 7 10"></polyline>
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+            </svg>
+        );
+
+        const Download = ({ size = 24 }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+        );
+
+        const Copy = ({ size = 24 }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+        );
+
+        const Check = ({ size = 24 }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+        );
+
+        function PrioritizationApp() {
+            const [stage, setStage] = useState('name');
+            const [exerciseName, setExerciseName] = useState('');
+            const [options, setOptions] = useState(['']);
+            const [currentPair, setCurrentPair] = useState(0);
+            const [scores, setScores] = useState({});
+            const [pairs, setPairs] = useState([]);
+            const [matchupResults, setMatchupResults] = useState({});
+            const [copied, setCopied] = useState(false);
+            const resultsRef = useRef(null);
+
+            const addOption = () => {
+                setOptions([...options, '']);
+            };
+
+            const proceedToSetup = () => {
+                if (exerciseName.trim() === '') {
+                    alert('Please name your prioritization exercise');
+                    return;
+                }
+                setStage('setup');
+            };
+
+            const updateOption = (index, value) => {
+                const newOptions = [...options];
+                newOptions[index] = value;
+                setOptions(newOptions);
+            };
+
+            const removeOption = (index) => {
+                if (options.length > 1) {
+                    setOptions(options.filter((_, i) => i !== index));
+                }
+            };
+
+            const startComparison = () => {
+                const validOptions = options.filter(opt => opt.trim() !== '');
+                if (validOptions.length < 2) {
+                    alert('Please enter at least 2 options');
+                    return;
+                }
+
+                const allPairs = [];
+                for (let i = 0; i < validOptions.length; i++) {
+                    for (let j = i + 1; j < validOptions.length; j++) {
+                        allPairs.push([validOptions[i], validOptions[j]]);
+                    }
+                }
+
+                const initialScores = {};
+                validOptions.forEach(opt => {
+                    initialScores[opt] = 0;
+                });
+
+                setPairs(allPairs);
+                setScores(initialScores);
+                setCurrentPair(0);
+                setStage('comparing');
+            };
+
+            const selectOption = (selectedOption) => {
+                const newScores = { ...scores };
+                newScores[selectedOption]++;
+                setScores(newScores);
+
+                const [optionA, optionB] = pairs[currentPair];
+                const loser = selectedOption === optionA ? optionB : optionA;
+                const newMatchupResults = { ...matchupResults };
+                
+                if (!newMatchupResults[selectedOption]) {
+                    newMatchupResults[selectedOption] = { wins: [], losses: [] };
+                }
+                if (!newMatchupResults[loser]) {
+                    newMatchupResults[loser] = { wins: [], losses: [] };
+                }
+                
+                newMatchupResults[selectedOption].wins.push(loser);
+                newMatchupResults[loser].losses.push(selectedOption);
+                setMatchupResults(newMatchupResults);
+
+                if (currentPair < pairs.length - 1) {
+                    setCurrentPair(currentPair + 1);
+                } else {
+                    setStage('results');
+                }
+            };
+
+            const reset = () => {
+                setStage('name');
+                setExerciseName('');
+                setOptions(['']);
+                setCurrentPair(0);
+                setScores({});
+                setPairs([]);
+                setMatchupResults({});
+            };
+
+            const getRankedOptions = () => {
+                return Object.entries(scores)
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([option, score], index) => ({
+                        rank: index + 1,
+                        option,
+                        score,
+                        total: pairs.length
+                    }));
+            };
+
+            const generateTextSummary = () => {
+                const ranked = getRankedOptions();
+                
+                let summary = `${exerciseName}\n`;
+                summary += `${'='.repeat(exerciseName.length)}\n\n`;
+                summary += `Priority Rankings:\n\n`;
+                
+                ranked.forEach((item) => {
+                    const percentage = ((item.score / item.total) * 100).toFixed(0);
+                    summary += `${item.rank}. ${item.option}\n`;
+                    summary += `   Score: ${item.score}/${item.total} (${percentage}%)\n`;
+                    
+                    const results = matchupResults[item.option] || { wins: [], losses: [] };
+                    
+                    if (results.wins.length > 0) {
+                        summary += `   Won against: ${results.wins.join(', ')}\n`;
+                    }
+                    if (results.losses.length > 0) {
+                        summary += `   Lost to: ${results.losses.join(', ')}\n`;
+                    }
+                    summary += `\n`;
+                });
+                
+                return summary;
+            };
+
+            const copyToClipboard = async () => {
+                const summary = generateTextSummary();
+                try {
+                    await navigator.clipboard.writeText(summary);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                } catch (err) {
+                    alert('Failed to copy to clipboard');
+                }
+            };
+
+            const exportAsImage = async () => {
+                if (!resultsRef.current) return;
+                
+                try {
+                    // Load html2canvas from CDN
+                    if (!window.html2canvas) {
+                        const script = document.createElement('script');
+                        script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+                        document.head.appendChild(script);
+                        await new Promise((resolve, reject) => {
+                            script.onload = resolve;
+                            script.onerror = reject;
+                        });
+                    }
+                    
+                    const canvas = await window.html2canvas(resultsRef.current, {
+                        backgroundColor: '#ffffff',
+                        scale: 2,
+                        logging: false,
+                        useCORS: true
+                    });
+                    
+                    canvas.toBlob((blob) => {
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.download = `${exerciseName.replace(/\s+/g, '-')}-priorities.png`;
+                        link.href = url;
+                        link.click();
+                        URL.revokeObjectURL(url);
+                    });
+                } catch (err) {
+                    console.error('Export error:', err);
+                    alert('Failed to export image. Please try again.');
+                }
+            };
+
+            const getMatchupGrid = () => {
+                const ranked = getRankedOptions();
+                const optionsList = ranked.map(r => r.option);
+                
+                // Create grid data
+                const grid = {};
+                optionsList.forEach(opt => {
+                    grid[opt] = {};
+                    optionsList.forEach(other => {
+                        if (opt === other) {
+                            grid[opt][other] = null; // Same option
+                        } else {
+                            const results = matchupResults[opt] || { wins: [], losses: [] };
+                            grid[opt][other] = results.wins.includes(other) ? 'W' : 'L';
+                        }
+                    });
+                });
+                
+                return { grid, optionsList };
+            };
+
+            if (stage === 'name') {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-100 p-8">
+                        <div className="max-w-xl mx-auto bg-white rounded-lg shadow-lg p-8 mt-20">
+                            <h1 className="text-3xl font-bold text-gray-800 mb-2">Priority Ranking</h1>
+                            <p className="text-gray-600 mb-8">Name your prioritization exercise to get started</p>
+                            
+                            <div className="space-y-6">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Exercise Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={exerciseName}
+                                        onChange={(e) => setExerciseName(e.target.value)}
+                                        placeholder="e.g., Financial Priorities, Career Goals, Life Values"
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-lg"
+                                        onKeyPress={(e) => e.key === 'Enter' && proceedToSetup()}
+                                    />
+                                </div>
+
+                                <button
+                                    onClick={proceedToSetup}
+                                    className="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2 text-lg font-medium"
+                                >
+                                    Continue <ArrowRight size={20} />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (stage === 'setup') {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
+                        <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-lg p-8">
+                            <h1 className="text-3xl font-bold text-gray-800 mb-2">{exerciseName}</h1>
+                            <p className="text-gray-600 mb-6">Enter your options to compare and prioritize</p>
+                            
+                            <div className="space-y-3 mb-6">
+                                {options.map((option, index) => (
+                                    <div key={index} className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={option}
+                                            onChange={(e) => updateOption(index, e.target.value)}
+                                            placeholder={`Option ${index + 1}`}
+                                            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                        />
+                                        {options.length > 1 && (
+                                            <button
+                                                onClick={() => removeOption(index)}
+                                                className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                            >
+                                                Remove
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={addOption}
+                                    className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                                >
+                                    + Add Option
+                                </button>
+                                <button
+                                    onClick={startComparison}
+                                    className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                                >
+                                    Start Comparison <ArrowRight size={18} />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (stage === 'comparing') {
+                const [optionA, optionB] = pairs[currentPair];
+                const progress = ((currentPair / pairs.length) * 100).toFixed(0);
+
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100 p-8">
+                        <div className="max-w-4xl mx-auto">
+                            <div className="bg-white rounded-lg shadow-lg p-8">
+                                <div className="mb-6">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="text-sm font-medium text-gray-600">
+                                            Comparison {currentPair + 1} of {pairs.length}
+                                        </span>
+                                        <span className="text-sm font-medium text-indigo-600">{progress}%</span>
+                                    </div>
+                                    <div className="w-full bg-gray-200 rounded-full h-2">
+                                        <div
+                                            className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
+                                            style={{ width: `${progress}%` }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <h2 className="text-2xl font-bold text-center text-gray-800 mb-8">
+                                    If you could only choose one of these, which would you choose?
+                                </h2>
+
+                                <div className="flex items-center gap-4">
+                                    <button
+                                        onClick={() => selectOption(optionA)}
+                                        className="flex-1 p-6 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all transform hover:scale-105 shadow-lg"
+                                    >
+                                        <div className="text-lg font-semibold text-center">{optionA}</div>
+                                    </button>
+
+                                    <div className="text-gray-400 text-2xl font-light">vs</div>
+
+                                    <button
+                                        onClick={() => selectOption(optionB)}
+                                        className="flex-1 p-6 bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl hover:from-purple-600 hover:to-purple-700 transition-all transform hover:scale-105 shadow-lg"
+                                    >
+                                        <div className="text-lg font-semibold text-center">{optionB}</div>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (stage === 'results') {
+                const rankedOptions = getRankedOptions();
+                const maxScore = Math.max(...rankedOptions.map(r => r.score));
+                const textSummary = generateTextSummary();
+
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 p-8">
+                        <div className="max-w-3xl mx-auto">
+                            <div ref={resultsRef} className="bg-white rounded-lg shadow-lg p-8">
+                                <h1 className="text-3xl font-bold text-gray-800 mb-2">{exerciseName}</h1>
+                                <p className="text-gray-600 mb-8">Ranked by your preferences</p>
+
+                                <div className="space-y-4 mb-8">
+                                    {rankedOptions.map((item) => (
+                                        <div key={item.option} className="border border-gray-200 rounded-lg p-4">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-2xl font-bold text-indigo-600">#{item.rank}</span>
+                                                    <span className="text-lg font-semibold text-gray-800">{item.option}</span>
+                                                </div>
+                                                <span className="text-sm font-medium text-gray-600">
+                                                    {item.score} / {item.total} wins
+                                                </span>
+                                            </div>
+                                            <div className="w-full bg-gray-200 rounded-full h-2">
+                                                <div
+                                                    className="bg-indigo-600 h-2 rounded-full transition-all"
+                                                    style={{ width: `${(item.score / maxScore) * 100}%` }}
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="border-t border-gray-200 pt-6">
+                                    <h2 className="text-lg font-semibold text-gray-800 mb-3">Head-to-Head Results</h2>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full border-collapse text-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th className="border border-gray-300 bg-gray-100 p-2 text-left font-semibold"></th>
+                                                    {(() => {
+                                                        const { optionsList } = getMatchupGrid();
+                                                        return optionsList.map((opt, idx) => (
+                                                            <th key={idx} className="border border-gray-300 bg-gray-100 p-2 text-center font-semibold text-xs">
+                                                                {opt}
+                                                            </th>
+                                                        ));
+                                                    })()}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {(() => {
+                                                    const { grid, optionsList } = getMatchupGrid();
+                                                    return optionsList.map((rowOpt, rowIdx) => (
+                                                        <tr key={rowIdx}>
+                                                            <td className="border border-gray-300 bg-gray-50 p-2 font-semibold text-xs">
+                                                                {rowOpt}
+                                                            </td>
+                                                            {optionsList.map((colOpt, colIdx) => {
+                                                                const result = grid[rowOpt][colOpt];
+                                                                return (
+                                                                    <td 
+                                                                        key={colIdx} 
+                                                                        className={`border border-gray-300 p-2 text-center font-semibold ${
+                                                                            result === null ? 'bg-gray-200 text-gray-400' :
+                                                                            result === 'W' ? 'bg-green-100 text-green-700' :
+                                                                            'bg-red-100 text-red-700'
+                                                                        }`}
+                                                                    >
+                                                                        {result === null ? '—' : result}
+                                                                    </td>
+                                                                );
+                                                            })}
+                                                        </tr>
+                                                    ));
+                                                })()}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-2">W = Won against (row option beat column option) | L = Lost to</p>
+                                </div>
+
+                                <div className="border-t border-gray-200 pt-6 mt-6">
+                                    <h2 className="text-lg font-semibold text-gray-800 mb-3">Summary</h2>
+                                    <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                                        <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono">
+                                            {textSummary}
+                                        </pre>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="mt-6 flex flex-wrap gap-3">
+                                <button
+                                    onClick={exportAsImage}
+                                    className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+                                >
+                                    <Download size={18} /> Export as Image
+                                </button>
+                                
+                                <button
+                                    onClick={copyToClipboard}
+                                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                                >
+                                    {copied ? <Check size={18} /> : <Copy size={18} />}
+                                    {copied ? 'Copied!' : 'Copy Summary'}
+                                </button>
+                                
+                                <button
+                                    onClick={reset}
+                                    className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                                >
+                                    <RotateCcw size={18} /> Start New
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+        }
+
+        ReactDOM.render(<PrioritizationApp />, document.getElementById('root'));
+    </script>
+</body>
+</html>
